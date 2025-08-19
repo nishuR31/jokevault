@@ -1,0 +1,129 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core System Colors */
+    --color-background: #0f0f23; /* deep-navy */
+    --color-foreground: #f8fafc; /* slate-50 */
+    --color-border: rgba(255, 255, 255, 0.1); /* white-10 */
+    --color-input: #1a1a2e; /* surface */
+    --color-ring: #8b5cf6; /* violet-500 */
+    
+    /* Card & Surface Colors */
+    --color-card: #1a1a2e; /* surface */
+    --color-card-foreground: #f8fafc; /* slate-50 */
+    --color-popover: #1a1a2e; /* surface */
+    --color-popover-foreground: #f8fafc; /* slate-50 */
+    
+    /* Muted Colors */
+    --color-muted: rgba(26, 26, 46, 0.5); /* surface-50 */
+    --color-muted-foreground: #94a3b8; /* slate-400 */
+    
+    /* Brand Primary Colors */
+    --color-primary: #8b5cf6; /* violet-500 */
+    --color-primary-foreground: #ffffff; /* white */
+    
+    /* Brand Secondary Colors */
+    --color-secondary: #6366f1; /* indigo-500 */
+    --color-secondary-foreground: #ffffff; /* white */
+    
+    /* Accent Colors */
+    --color-accent: #a855f7; /* violet-600 */
+    --color-accent-foreground: #ffffff; /* white */
+    
+    /* Status Colors */
+    --color-destructive: #ef4444; /* red-500 */
+    --color-destructive-foreground: #ffffff; /* white */
+    --color-success: #10b981; /* emerald-500 */
+    --color-success-foreground: #ffffff; /* white */
+    --color-warning: #f59e0b; /* amber-500 */
+    --color-warning-foreground: #ffffff; /* white */
+    --color-error: #ef4444; /* red-500 */
+    --color-error-foreground: #ffffff; /* white */
+  }
+
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .glassmorphic {
+    backdrop-filter: blur(20px);
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  
+  .glassmorphic-card {
+    backdrop-filter: blur(20px);
+    background: rgba(26, 26, 46, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 8px 32px rgba(139, 92, 246, 0.1);
+  }
+  
+  .text-shadow-glow {
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
+  }
+  
+  .hover-lift {
+    transition: transform 0.3s ease-out, filter 0.3s ease-out;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+  
+  .pulse-glow {
+    animation: pulse-glow 2s infinite;
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 0.6;
+      box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    }
+    50% {
+      opacity: 1;
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.6);
+    }
+  }
+  
+  .stagger-fade-in {
+    animation: stagger-fade-in 0.6s ease-out forwards;
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  
+  @keyframes stagger-fade-in {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .comedy-timing {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .micro-bounce {
+    animation: micro-bounce 0.5s ease-out;
+  }
+  
+  @keyframes micro-bounce {
+    0% { transform: scale(0.95); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+}
