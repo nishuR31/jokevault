@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, AlertCircle, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import Button from '../../components/ui/Button';
+import { useAuth } from '../../context/AuthContext';
 
 import LoginForm from './components/LoginForm';
 import SignupForm from './components/SignupForm';
@@ -13,73 +15,37 @@ import TwoFactorAuth from './components/TwoFactorAuth';
 import PrivacyControls from './components/PrivacyControls';
 import GuestBrowsePrompt from './components/GuestBrowsePrompt';
 
-
 const AuthenticationPortal = () => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { login, register, user, isAuthenticated, isAdmin } = useAuth();
+  const navigate = useNavigate();
+
+  const [isModalOpen, setIsModalOpen] = useState(true);
   const [authMode, setAuthMode] = useState('login'); // 'login', 'signup', 'reset', 'verify', '2fa', 'privacy', 'guest'
-  const [registrationStep, setRegistrationStep] = useState(1); // 1: basic info, 2: humor prefs, 3: verification
+  const [registrationStep, setRegistrationStep] = useState(1);
   const [userData, setUserData] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
 
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  useEffect(() => {
-    // Auto-open modal on component mount for demo purposes
-    setIsModalOpen(true);
-  }, []);
-
   const modalVariants = {
-    hidden: {
-      opacity: 0,
-      scale: 0.8,
-      y: 50,
-    },
+    hidden: { opacity: 0, scale: 0.9, y: 30 },
     visible: {
       opacity: 1,
       scale: 1,
       y: 0,
-      transition: {
-        type: "spring",
-        stiffness: 300,
-        damping: 25,
-        duration: 0.4,
-      },
+      transition: { type: "spring", stiffness: 300, damping: 25 },
     },
-    exit: {
-      opacity: 0,
-      scale: 0.8,
-      y: 50,
-      transition: {
-        duration: 0.2,
-      },
-    },
-  };
-
-  const slideVariants = {
-    enter: (direction) => ({
-      x: direction > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      zIndex: 1,
-      x: 0,
-      opacity: 1,
-    },
-    exit: (direction) => ({
-      zIndex: 0,
-      x: direction < 0 ? 300 : -300,
-      opacity: 0,
-    }),
+    exit: { opacity: 0, scale: 0.9, y: 30, transition: { duration: 0.2 } },
   };
 
   const handleCloseModal = () => {
@@ -89,36 +55,90 @@ const AuthenticationPortal = () => {
   const handleAuthModeChange = (mode, step = 1) => {
     setAuthMode(mode);
     setRegistrationStep(step);
+    setAuthError('');
+    setAuthSuccess('');
   };
 
-  const handleRegistrationComplete = (data) => {
-    setUserData({ ...userData, ...data });
-    if (registrationStep === 1) {
-      setRegistrationStep(2);
-    } else if (registrationStep === 2) {
-      setRegistrationStep(3);
-      setAuthMode('verify');
+  // Real Fastify API Login
+  const handleLogin = async (credentials) => {
+    setIsLoading(true);
+    setAuthError('');
+    setAuthSuccess('');
+    try {
+      const res = await login(credentials);
+      if (res.success) {
+        setAuthSuccess(`Welcome back, ${res.user?.userName || 'friend'}! Redirecting...`);
+        setTimeout(() => {
+          navigate('/user-dashboard');
+        }, 800);
+      } else {
+        setAuthError(res.message || 'Invalid username/email or password.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed. Please verify API connection.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleLogin = async (credentials) => {
-    setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('Login successful:', credentials);
-      setIsModalOpen(false);
-    }, 1500);
+  // Stepwise registration or direct submission
+  const handleRegistrationComplete = async (data) => {
+    const updatedUser = { ...userData, ...data };
+    setUserData(updatedUser);
+
+    if (registrationStep === 1) {
+      // User finished step 1 (credentials)
+      setIsLoading(true);
+      setAuthError('');
+      try {
+        const payload = {
+          userName: updatedUser.username || updatedUser.userName,
+          email: updatedUser.email,
+          password: updatedUser.password,
+          role: updatedUser.isAdminRegister ? 'admin' : 'user',
+          adminSecretKey: updatedUser.adminSecretKey,
+        };
+        const res = await register(payload);
+        if (res.success) {
+          setAuthSuccess('Account registered successfully! Personalizing humor profile...');
+          setRegistrationStep(2);
+        } else {
+          setAuthError(res.message || 'Registration failed. Username or email might be taken.');
+        }
+      } catch (err) {
+        setAuthError(err.message || 'Could not complete registration.');
+      } finally {
+        setIsLoading(false);
+      }
+    } else if (registrationStep === 2) {
+      // Step 2 finished (humor prefs) -> Auto sign-in
+      setIsLoading(true);
+      try {
+        const loginRes = await login({
+          emailUser: updatedUser.email || updatedUser.username,
+          password: updatedUser.password,
+        });
+        if (loginRes.success) {
+          setAuthSuccess('Profile ready! Welcome to JokeVault!');
+          setTimeout(() => navigate('/user-dashboard'), 700);
+        } else {
+          setAuthMode('login');
+        }
+      } catch {
+        setAuthMode('login');
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleSocialAuth = async (provider) => {
     setIsLoading(true);
-    // Simulate OAuth flow
     setTimeout(() => {
       setIsLoading(false);
-      console.log('Social auth with:', provider);
-      setIsModalOpen(false);
-    }, 2000);
+      setAuthSuccess(`Connected with ${provider}. Redirecting...`);
+      setTimeout(() => navigate('/homepage'), 600);
+    }, 1000);
   };
 
   const renderModalContent = () => {
@@ -283,6 +303,38 @@ const AuthenticationPortal = () => {
                         }`}
                       />
                     ))}
+                  </div>
+                )}
+
+                {/* Authenticated user indicator */}
+                {isAuthenticated && (
+                  <div className="mb-4 p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-center text-xs">
+                    <span className="text-muted-foreground">Currently logged in as </span>
+                    <span className="font-semibold text-primary font-mono">{user?.userName}</span>
+                    <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-primary/20 text-primary">
+                      {isAdmin ? 'ADMIN' : 'USER'}
+                    </span>
+                    <div className="mt-1.5">
+                      <Link to="/user-dashboard" className="text-primary hover:underline font-medium">
+                        Open Dashboard →
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Banner */}
+                {authError && (
+                  <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                    <AlertCircle size={16} className="shrink-0 text-red-400" />
+                    <span>{authError}</span>
+                  </div>
+                )}
+
+                {/* Success Banner */}
+                {authSuccess && (
+                  <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
+                    <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+                    <span>{authSuccess}</span>
                   </div>
                 )}
               </div>

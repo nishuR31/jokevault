@@ -1,23 +1,27 @@
 import ApiResponse from "../utils/apiResponse.js";
-import asyncHandler from "../utils/asyncHandler.js";
 import codes from "../utils/statusCodes.js";
-let health = asyncHandler(async (req, res) => {
-  res.status(codes.ok).json(
-    new ApiResponse(` Server running, health is top notch!`, codes.ok, {
-      Time: new Date().toLocaleString(),
-      secure: req.secure,
-      urls: {
-        path:
-          req.secure ? "https" : (
-            "http" + "://" + req.host + req.baseUrl + req.url
-          ),
-        hostname: req.hostname,
-        port: req.host.split(":")[req.host.split(":").length - 1],
-        base: req.baseUrl,
-        url: req.url,
+
+export async function health(request, reply) {
+  const memoryUsage = process.memoryUsage();
+  return reply.status(codes.ok).send(
+    new ApiResponse("JokeVault Fastify server is running smoothly!", codes.ok, {
+      status: "healthy",
+      framework: "Fastify",
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      nodeVersion: process.version,
+      memory: {
+        rssMB: Math.round(memoryUsage.rss / 1024 / 1024),
+        heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
       },
-    })
+      request: {
+        protocol: request.protocol,
+        hostname: request.hostname,
+        url: request.url,
+        ip: request.ip,
+      },
+    }).res()
   );
-});
+}
 
 export default health;

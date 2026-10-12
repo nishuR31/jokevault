@@ -1,10 +1,17 @@
 import jwt from "jsonwebtoken";
 import tokenOptions from "./tokenOptions.js";
+
+const DEFAULT_ACCESS_SECRET = "jokevault_default_access_secret_key_2026";
+const DEFAULT_REFRESH_SECRET = "jokevault_default_refresh_secret_key_2026";
+
 function accessToken(payload) {
-  return jwt.sign(payload, process.env.SECRET_ACC, tokenOptions("access"));
+  const secret = process.env.SECRET_ACC || DEFAULT_ACCESS_SECRET;
+  return jwt.sign(payload, secret, tokenOptions("access"));
 }
+
 function refreshToken(payload) {
-  return jwt.sign(payload, process.env.SECRET_REF, tokenOptions("refresh"));
+  const secret = process.env.SECRET_REF || DEFAULT_REFRESH_SECRET;
+  return jwt.sign(payload, secret, tokenOptions("refresh"));
 }
 
 function tokens(payload) {
@@ -15,10 +22,13 @@ function tokens(payload) {
 }
 
 function verifyAccess(token) {
-  return jwt.verify(token, process.env.SECRET_ACC);
+  const secret = process.env.SECRET_ACC || DEFAULT_ACCESS_SECRET;
+  return jwt.verify(token, secret);
 }
+
 function verifyRefresh(token) {
-  return jwt.verify(token, process.env.SECRET_REF);
+  const secret = process.env.SECRET_REF || DEFAULT_REFRESH_SECRET;
+  return jwt.verify(token, secret);
 }
 
 export { accessToken, refreshToken, tokens, verifyAccess, verifyRefresh };

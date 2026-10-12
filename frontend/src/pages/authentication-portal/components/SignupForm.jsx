@@ -1,75 +1,34 @@
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 
 const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
-  const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    agreeToTerms: false,
-  });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [errors, setErrors] = useState({});
 
-  const handleInputChange = (e) => {
-    const { name, value, type, checked } = e?.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    
-    // Clear error when user starts typing
-    if (errors?.[name]) {
-      setErrors(prev => ({ ...prev, [name]: '' }));
-    }
-  };
+  const {
+    register,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      username: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      isAdminRegister: false,
+      adminSecretKey: '',
+      agreeToTerms: false,
+    },
+    mode: 'onTouched',
+  });
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData?.username) {
-      newErrors.username = 'Username is required';
-    } else if (formData?.username?.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
-    }
-    
-    if (!formData?.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/?.test(formData?.email)) {
-      newErrors.email = 'Please enter a valid email';
-    }
-    
-    if (!formData?.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData?.password?.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-    
-    if (!formData?.confirmPassword) {
-      newErrors.confirmPassword = 'Please confirm your password';
-    } else if (formData?.password !== formData?.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-    
-    if (!formData?.agreeToTerms) {
-      newErrors.agreeToTerms = 'You must agree to the terms and conditions';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors)?.length === 0;
-  };
-
-  const handleSubmit = (e) => {
-    e?.preventDefault();
-    if (validateForm()) {
-      onSubmit(formData);
-    }
-  };
+  const passwordValue = watch('password', '');
+  const isAdminRegister = watch('isAdminRegister', false);
 
   const passwordStrength = (password) => {
     if (!password) return { strength: 0, text: '' };
@@ -80,7 +39,7 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
       /[A-Z]/?.test(password),
       /[a-z]/?.test(password),
       /\d/?.test(password),
-      /[^A-Za-z\d]/?.test(password)
+      /[^A-Za-z\d]/?.test(password),
     ];
     
     strength = checks?.filter(Boolean)?.length;
@@ -96,11 +55,15 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
     return {
       strength,
       text: strengthTexts?.[strength],
-      color: strengthColors?.[strength]
+      color: strengthColors?.[strength],
     };
   };
 
-  const currentPasswordStrength = passwordStrength(formData?.password);
+  const currentPasswordStrength = passwordStrength(passwordValue);
+
+  const onFormSubmit = (data) => {
+    onSubmit(data);
+  };
 
   return (
     <motion.div
@@ -108,27 +71,35 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-4"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
         <Input
           type="text"
-          name="username"
           label="Username"
           placeholder="Choose a funny username"
-          value={formData?.username}
-          onChange={handleInputChange}
-          error={errors?.username}
+          {...register('username', {
+            required: 'Username is required',
+            minLength: {
+              value: 3,
+              message: 'Username must be at least 3 characters',
+            },
+          })}
+          error={errors?.username?.message}
           required
           className="w-full"
         />
 
         <Input
           type="email"
-          name="email"
           label="Email"
           placeholder="your.email@example.com"
-          value={formData?.email}
-          onChange={handleInputChange}
-          error={errors?.email}
+          {...register('email', {
+            required: 'Email is required',
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              message: 'Please enter a valid email',
+            },
+          })}
+          error={errors?.email?.message}
           required
           className="w-full"
         />
@@ -136,12 +107,20 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
         <div className="relative">
           <Input
             type={showPassword ? 'text' : 'password'}
-            name="password"
             label="Password"
             placeholder="Create a strong password"
-            value={formData?.password}
-            onChange={handleInputChange}
-            error={errors?.password}
+            {...register('password', {
+              required: 'Password is required',
+              minLength: {
+                value: 8,
+                message: 'Password must be at least 8 characters',
+              },
+              validate: {
+                hasNumber: (v) => /\d/.test(v) || 'Must contain at least one number [0-9]',
+                hasLowercase: (v) => /[a-z]/.test(v) || 'Must contain at least one lowercase letter',
+              },
+            })}
+            error={errors?.password?.message}
             required
             className="w-full pr-10"
           />
@@ -153,7 +132,7 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
           
-          {formData?.password && (
+          {passwordValue && (
             <div className="mt-2">
               <div className="flex space-x-1">
                 {[...Array(5)]?.map((_, i) => (
@@ -177,12 +156,13 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
         <div className="relative">
           <Input
             type={showConfirmPassword ? 'text' : 'password'}
-            name="confirmPassword"
             label="Confirm Password"
             placeholder="Confirm your password"
-            value={formData?.confirmPassword}
-            onChange={handleInputChange}
-            error={errors?.confirmPassword}
+            {...register('confirmPassword', {
+              required: 'Please confirm your password',
+              validate: (val) => val === passwordValue || 'Passwords do not match',
+            })}
+            error={errors?.confirmPassword?.message}
             required
             className="w-full pr-10"
           />
@@ -195,13 +175,39 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
           </button>
         </div>
 
+        <div className="pt-2 border-t border-white/10">
+          <label className="flex items-center space-x-2 cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+            <input
+              type="checkbox"
+              {...register('isAdminRegister')}
+              className="w-3.5 h-3.5 rounded border border-input bg-background text-primary"
+            />
+            <span>Register as Administrator / Developer (Optional)</span>
+          </label>
+          
+          {isAdminRegister && (
+            <div className="mt-2">
+              <Input
+                type="password"
+                label="Admin Secret Key"
+                placeholder="Enter admin secret (e.g. developer)"
+                {...register('adminSecretKey')}
+                className="w-full text-xs"
+              />
+              <p className="text-[11px] text-primary/80 mt-1">
+                Tip: Enter &quot;developer&quot; in development mode to receive full admin role.
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <label className="flex items-start space-x-2 cursor-pointer">
             <input
               type="checkbox"
-              name="agreeToTerms"
-              checked={formData?.agreeToTerms}
-              onChange={handleInputChange}
+              {...register('agreeToTerms', {
+                required: 'You must agree to the terms and conditions',
+              })}
               className="w-4 h-4 mt-0.5 rounded border border-input bg-background text-primary focus:ring-2 focus:ring-ring"
             />
             <span className="text-sm text-muted-foreground leading-relaxed">
@@ -216,7 +222,7 @@ const SignupForm = ({ onSubmit, onSwitchToLogin, isLoading }) => {
             </span>
           </label>
           {errors?.agreeToTerms && (
-            <p className="text-sm text-destructive">{errors?.agreeToTerms}</p>
+            <p className="text-sm text-destructive">{errors?.agreeToTerms?.message}</p>
           )}
         </div>
 

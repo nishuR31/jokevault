@@ -91,39 +91,23 @@
           </div>
           <div>
             <span>- Get joke by ID</span> • <strong>GET</strong>:
-            <a
-              href="${baseRoute}/:id"
-              class="inline-block ml-2 bg-gradient-to-r from-transparent via-[#ffffff44] px-3 to-transparent px-3 py-1 rounded shadow hover:shadow-white/20 transition"
-            >
-              ${baseRoute}/:id
-            </a>
+            <code class="ml-2 bg-black/40 px-3 py-1 rounded text-cyan-300">/api/v1/j/:id</code>
+            <span class="text-xs text-gray-400 ml-2">(Public / User)</span>
           </div>
           <div>
-            <span>- Submit a new joke</span> • <strong>POST</strong>:
-            <a
-              href="${baseRoute}/joke"
-              class="inline-block ml-2 bg-gradient-to-r from-transparent via-[#ffffff44] px-3 to-transparent px-3 py-1 rounded shadow hover:shadow-white/20 transition"
-            >
-              ${baseRoute}/joke
-            </a>
+            <span>- Full update joke</span> • <strong>PUT</strong>:
+            <code class="ml-2 bg-black/40 px-3 py-1 rounded text-yellow-300">/api/v1/j/:id</code>
+            <span class="text-xs text-yellow-400 ml-2">(Admin only)</span>
           </div>
           <div>
-            <span>- Delete a joke by ID</span> • <strong>DELETE</strong>:
-            <a
-              href="${baseRoute}/:id/delete"
-              class="inline-block ml-2 bg-gradient-to-r from-transparent via-[#ffffff44] px-3 to-transparent px-3 py-1 rounded shadow hover:shadow-white/20 transition"
-            >
-              ${baseRoute}/:id/delete
-            </a>
+            <span>- Partial update joke</span> • <strong>PATCH</strong>:
+            <code class="ml-2 bg-black/40 px-3 py-1 rounded text-yellow-300">/api/v1/j/:id</code>
+            <span class="text-xs text-yellow-400 ml-2">(Admin only)</span>
           </div>
           <div>
-            <span>- Edit a joke by ID</span> • <strong>PUT</strong>:
-            <a
-              href="${baseRoute}/:id/edit"
-              class="inline-block ml-2 bg-gradient-to-r from-transparent via-[#ffffff44] px-3 to-transparent px-3 py-1 rounded shadow hover:shadow-white/20 transition"
-            >
-              ${baseRoute}/:id/edit
-            </a>
+            <span>- Delete a joke</span> • <strong>DELETE</strong>:
+            <code class="ml-2 bg-black/40 px-3 py-1 rounded text-red-300">/api/v1/j/:id</code>
+            <span class="text-xs text-red-400 ml-2">(Admin only)</span>
           </div>
         </div>
       </section>

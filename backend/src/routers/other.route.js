@@ -1,12 +1,7 @@
-import help from "../controllers/help.controller.js"
+import help from "../controllers/help.controller.js";
+import health from "../controllers/health.controller.js";
 
-import health from "../controllers/health.controller.js"
-import express from "express"
-// import keepup from "../controllers/upkeep.controller.js";
-
-let other=express.Router()
-other.get("/help", help);
-other.get("/health", health);
-// other.get("/upkeep", keepup);
-
-export default other;
+export default async function otherRouter(fastify, options) {
+  fastify.get("/help", help);
+  fastify.get("/health", health);
+}

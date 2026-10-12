@@ -54,7 +54,7 @@ const JokeOfTheDay = () => {
         <div className="mb-8 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 mb-4 font-medium text-white rounded-full bg-gradient-to-r from-primary to-secondary">
             {/* <Icon name="Star" size={20} /> */}
-            <img scr="/logo.png" alt="jokevault" />
+            <img src="/logo.png" alt="jokevault" className="w-5 h-5 object-contain inline-block" />
             Joke of the Day
           </div>
           <h2 className="mb-4 text-3xl font-bold font-poppins md:text-4xl text-foreground">

@@ -17,7 +17,8 @@ const codes = {
   tooManyRequest: 429,
 
   // 🚨 Server Errors (500 range)
-  interalServerError: 500,
+  internalServerError: 500,
+  interalServerError: 500, // backwards compatibility
   notImplement: 501,
   badGateway: 502,
   serviceUnavailable: 503,

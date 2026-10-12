@@ -9,6 +9,8 @@ import PreferencesSection from './components/PreferencesSection';
 import ContributionsSection from './components/ContributionsSection';
 import SocialSection from './components/SocialSection';
 import QuickActionsPanel from './components/QuickActionsPanel';
+import AdminJokeConsole from './components/AdminJokeConsole';
+import { useAuth } from '../../context/AuthContext';
 
 const UserDashboard = () => {
   const [currentTheme, setCurrentTheme] = useState('dark');
@@ -309,6 +311,18 @@ const UserDashboard = () => {
     localStorage.setItem('userPreferences', JSON.stringify(preferences));
   }, [preferences]);
 
+  const { user, isAdmin, isAuthenticated } = useAuth();
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'admin' | 'preferences'
+
+  const displayUser = {
+    name: user?.userName || user?.firstName || "Alex Johnson",
+    email: user?.email || "alex.johnson@email.com",
+    streak: 15,
+    joinedDate: user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : "2024-01-15",
+    isVerified: true,
+    role: isAdmin ? "admin" : "user",
+  };
+
   return (
     <>
       <Helmet>
@@ -320,30 +334,103 @@ const UserDashboard = () => {
       <div className="min-h-screen bg-background">
         <Header />
         
-        <main className="pt-20 pb-8">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            {/* Welcome Section */}
-            <WelcomeCard user={userData} stats={statsData} />
-
-            {/* Main Dashboard Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column */}
-              <div className="lg:col-span-2 space-y-6">
-                <MyVaultSection collections={collectionsData} />
-                <RecommendationsSection recommendations={recommendationsData} />
-                <ReadingHistorySection history={historyData} />
+        <main className="pt-24 pb-12">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            {/* Top Navigation Tabs */}
+            <div className="flex flex-wrap items-center justify-between gap-4 p-2 glassmorphic-card rounded-2xl">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('overview')}
+                  className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold transition-all ${
+                    activeTab === 'overview'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Dashboard Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('admin')}
+                  className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold flex items-center gap-2 transition-all ${
+                    activeTab === 'admin'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <span>Joke &amp; RBAC Console</span>
+                  {isAdmin ? (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-400 text-slate-950 font-bold uppercase">
+                      Admin
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-700 text-slate-300 font-bold uppercase">
+                      RBAC
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('preferences')}
+                  className={`px-4 py-2 rounded-xl text-xs font-mono font-semibold transition-all ${
+                    activeTab === 'preferences'
+                      ? 'bg-primary text-white shadow-lg shadow-primary/25'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Preferences
+                </button>
               </div>
 
-              {/* Right Column */}
-              <div className="space-y-6">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1 rounded-xl glassmorphic text-xs font-mono text-slate-400">
+                <span>Account:</span>
+                <span className="text-white font-bold">{displayUser.name}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold ${isAdmin ? 'bg-amber-400/20 text-amber-400' : 'bg-primary/20 text-primary'}`}>
+                  {isAdmin ? 'Admin' : 'User'}
+                </span>
+              </div>
+            </div>
+
+            {/* TAB: OVERVIEW */}
+            {activeTab === 'overview' && (
+              <>
+                {/* Welcome Section */}
+                <WelcomeCard user={displayUser} stats={statsData} />
+
+                {/* Main Dashboard Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <MyVaultSection collections={collectionsData} />
+                    <RecommendationsSection recommendations={recommendationsData} />
+                    <ReadingHistorySection history={historyData} />
+                  </div>
+
+                  {/* Right Column */}
+                  <div className="space-y-6">
+                    <PreferencesSection 
+                      preferences={preferences} 
+                      onPreferencesUpdate={handlePreferencesUpdate} 
+                    />
+                    <ContributionsSection contributions={contributionsData} />
+                    <SocialSection socialData={socialData} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* TAB: ADMIN & JOKE CONSOLE */}
+            {activeTab === 'admin' && (
+              <AdminJokeConsole currentUser={user} isAdmin={isAdmin} />
+            )}
+
+            {/* TAB: PREFERENCES */}
+            {activeTab === 'preferences' && (
+              <div className="max-w-3xl mx-auto">
                 <PreferencesSection 
                   preferences={preferences} 
                   onPreferencesUpdate={handlePreferencesUpdate} 
                 />
-                <ContributionsSection contributions={contributionsData} />
-                <SocialSection socialData={socialData} />
               </div>
-            </div>
+            )}
           </div>
         </main>
 

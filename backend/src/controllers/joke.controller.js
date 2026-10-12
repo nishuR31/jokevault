@@ -1,43 +1,46 @@
+import mongoose from "mongoose";
 import codes from "../utils/statusCodes.js";
 import Joke from "../models/joke.model.js";
 import ApiErrorResponse from "../utils/apiErrorResponse.js";
 import ApiResponse from "../utils/apiResponse.js";
-import asyncHandler from "../utils/asyncHandler.js";
 import isEmpty from "../utils/isEmpty.js";
-import mongoose from "mongoose";
-import { red } from "../config/redis.js";
+import { cacheGet, cacheSet, cacheDel } from "../config/redis.js";
+
 //////////////////////////////////////////////////////////////
 
-export let deleteJoke = asyncHandler(async (req, res) => {
-  const id = req.params.id;
-  let exist = JSON.parse(await red.hGet(`user:${process.env.KEY}`, "login"));
-  if (exist && !exist.role.inclues("admin")) {
-    return res
-      .status(codes.unauthorized)
-      .json(
+export async function deleteJoke(request, reply) {
+  const { id } = request.params;
+
+  // Verify admin authorization
+  if (request.user && !request.user.role.includes("admin")) {
+    return reply
+      .status(codes.forbidden)
+      .send(
         new ApiErrorResponse(
-          "Not authorized to delete joke",
-          codes.unauthorized
+          "Forbidden: Regular users cannot delete jokes. Admin privileges required.",
+          codes.forbidden
         ).res()
       );
   }
 
-  // Optional: Validate ObjectId format
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
+    return reply
       .status(codes.badRequest)
-      .json(new ApiErrorResponse("Invalid joke ID", codes.badRequest).res());
+      .send(new ApiErrorResponse("Invalid joke ID", codes.badRequest).res());
   }
 
   const deletedJoke = await Joke.findByIdAndDelete(id);
 
   if (!deletedJoke) {
-    return res
+    return reply
       .status(codes.notFound)
-      .json(new ApiErrorResponse("Joke not found", codes.notFound).res());
+      .send(new ApiErrorResponse("Joke not found", codes.notFound).res());
   }
 
-  return res.status(codes.ok).json(
+  // Invalidate tags cache
+  await cacheDel("joke:tags");
+
+  return reply.status(codes.ok).send(
     new ApiResponse("Joke successfully deleted", codes.ok, {
       id: deletedJoke._id,
       joke: deletedJoke.joke,
@@ -45,145 +48,184 @@ export let deleteJoke = asyncHandler(async (req, res) => {
       rating: deletedJoke.rating,
     }).res()
   );
-});
+}
 
 ///////////////////////////////////////////////
 
-export let editJoke = asyncHandler(async (req, res) => {
-  let exist = JSON.parse(await red.hGet(`user:${process.env.KEY}`, "login"));
-  if (exist && !exist.role.inclues("admin")) {
-    return res
-      .status(codes.unauthorized)
-      .json(
+export async function editJoke(request, reply) {
+  const { id } = request.params;
+  const { joke, tags, rating } = request.body || {};
+
+  if (request.user && !request.user.role.includes("admin")) {
+    return reply
+      .status(codes.forbidden)
+      .send(
         new ApiErrorResponse(
-          "Not authorized to edit joke",
-          codes.unauthorized
+          "Forbidden: Regular users cannot edit jokes. Admin privileges required.",
+          codes.forbidden
         ).res()
       );
   }
 
-  let body = req.body;
-  let id = req.params.id;
-  let { joke, tags, rating } = body;
-  let payload = { joke, tags, rating };
-  if (isEmpty([joke, ...tags, id])) {
-    return res
-      .status(codes.badRequest)
-      .json(
-        new ApiErrorResponse("Some fields are missing ", codes.badRequest).res()
-      );
-  }
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
+    return reply
       .status(codes.badRequest)
-      .json(
-        new ApiErrorResponse("Id is wrong or invalid ", codes.badRequest).res()
+      .send(
+        new ApiErrorResponse("ID is wrong or invalid", codes.badRequest).res()
       );
   }
 
-  let updatedJoke = await Joke.findByIdAndUpdate(id, payload, {
+  const payload = {};
+  if (joke !== undefined) payload.joke = joke;
+  if (tags !== undefined) payload.tags = tags;
+  if (rating !== undefined) payload.rating = rating;
+
+  const updatedJoke = await Joke.findByIdAndUpdate(id, payload, {
     new: true,
-    validateBeforeSave: true,
+    runValidators: true,
   });
+
   if (!updatedJoke) {
-    return res
+    return reply
       .status(codes.notFound)
-      .json(
-        new ApiErrorResponse("No jokes found to update", codes.notFound).res()
+      .send(
+        new ApiErrorResponse("No joke found to update", codes.notFound).res()
       );
   }
-  return res.status(codes.ok).json(
-    new ApiResponse("joke successfully update", codes.ok, {
+
+  // Invalidate tags cache
+  await cacheDel("joke:tags");
+
+  return reply.status(codes.ok).send(
+    new ApiResponse("Joke successfully updated", codes.ok, {
+      id: updatedJoke._id,
       joke: updatedJoke.joke,
+      tags: updatedJoke.tags,
+      rating: updatedJoke.rating,
     }).res()
   );
-});
+}
 
 //////////////////////////////////////////////////////////
 
-export let getJoke = asyncHandler(async (req, res) => {
-  let tags = req.query.tags;
+export async function getJoke(request, reply) {
+  let tags = request.query.tags;
+
+  // Enhanced behavior from 'joke' repo:
+  // If no tags provided, fetch a random joke from the whole database
   if (!tags) {
-    return res
-      .status(codes.notFound)
-      .json(new ApiErrorResponse("No tags provided", codes.notFound).res());
+    const randomJoke = await Joke.aggregate([
+      { $sample: { size: 1 } },
+      { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
+    ]);
+
+    if (!randomJoke || randomJoke.length === 0) {
+      return reply
+        .status(codes.notFound)
+        .send(new ApiErrorResponse("No jokes available in the vault", codes.notFound).res());
+    }
+
+    return reply.status(codes.ok).send(
+      new ApiResponse("Random joke fetched successfully", codes.ok, {
+        joke: randomJoke[0],
+      }).res()
+    );
   }
-  let tagList =
-    Array.isArray(tags) ? tags
-    : tags ? [tags]
-    : [];
+
+  let tagList = Array.isArray(tags) ? tags : [tags];
 
   if (isEmpty(tagList)) {
-    return res
+    return reply
       .status(codes.badRequest)
-      .json(new ApiErrorResponse("Tag is empty", codes.badRequest).res());
+      .send(new ApiErrorResponse("Tag is empty", codes.badRequest).res());
   }
+
   let joke = await Joke.aggregate([
     { $match: { tags: { $in: tagList } } },
     { $sample: { size: 1 } },
     { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
   ]);
-  if (!joke || isEmpty([joke])) {
-    return res
+
+  if (!joke || joke.length === 0) {
+    return reply
       .status(codes.notFound)
-      .json(new ApiErrorResponse("Joke not found", codes.notFound).res());
+      .send(new ApiErrorResponse("Joke not found for given tags", codes.notFound).res());
   }
 
-  return res.status(codes.ok).json(
+  return reply.status(codes.ok).send(
     new ApiResponse("Joke fetched successfully", codes.ok, {
-      joke: joke,
+      joke: joke[0],
     }).res()
   );
-});
+}
 
 ////////////////////////////////////////////////////////////////
 
-export let getJokes = asyncHandler(async (req, res) => {
-  let tags = req.query.tags;
+export async function getJokes(request, reply) {
+  let tags = request.query.tags;
+  let count = parseInt(request.query.count) || parseInt(request.query.limit) || 5;
+
+  // Enhanced behavior from 'joke' repo:
+  // If no tags provided, return sample of random jokes
   if (!tags) {
-    return res
-      .status(codes.notFound)
-      .json(new ApiErrorResponse("No tags provided", codes.notFound).res());
-  }
+    let sampleJokes = await Joke.aggregate([
+      { $sample: { size: count } },
+      { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
+    ]);
 
-  let tagList =
-    Array.isArray(tags) ? tags
-    : tags ? [tags]
-    : [];
-
-  if (isEmpty(tagList)) {
-    return res
-      .status(codes.badRequest)
-      .json(new ApiErrorResponse("Tag is empty", codes.badRequest).res());
-  }
-  let jokes = await Joke.aggregate([
-    { $match: { tags: { $in: tagList } } },
-    { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
-  ]);
-  if (!jokes || isEmpty([jokes])) {
-    return res
-      .status(codes.notFound)
-      .json(new ApiErrorResponse("Joke not found", codes.notFound).res());
-  }
-
-  return res.status(codes.ok).json(
-    new ApiResponse("Joke fetched successfully", codes.ok, {
-      jokes: jokes,
-    }).res()
-  );
-});
-
-/////////////////////////////////////////////////
-
-export let getTags = asyncHandler(async (req, res) => {
-  let exist = JSON.stringify(await red.hGet(`joke:${process.env.KEY}`, "tags"));
-  if (exist) {
-    return res.status(codes.ok).json(
-      new ApiResponse("Tags are found successfully", codes.ok, {
-        tags: exist,
+    return reply.status(codes.ok).send(
+      new ApiResponse("Random jokes fetched successfully", codes.ok, {
+        jokes: sampleJokes,
+        count: sampleJokes.length,
       }).res()
     );
   }
+
+  let tagList = Array.isArray(tags) ? tags : [tags];
+
+  if (isEmpty(tagList)) {
+    return reply
+      .status(codes.badRequest)
+      .send(new ApiErrorResponse("Tag is empty", codes.badRequest).res());
+  }
+
+  let jokes = await Joke.aggregate([
+    { $match: { tags: { $in: tagList } } },
+    { $limit: count },
+    { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
+  ]);
+
+  if (!jokes || jokes.length === 0) {
+    return reply
+      .status(codes.notFound)
+      .send(new ApiErrorResponse("No jokes found matching the tags", codes.notFound).res());
+  }
+
+  return reply.status(codes.ok).send(
+    new ApiResponse("Jokes fetched successfully", codes.ok, {
+      jokes: jokes,
+      count: jokes.length,
+    }).res()
+  );
+}
+
+/////////////////////////////////////////////////
+
+export async function getTags(request, reply) {
+  const cachedTags = await cacheGet("joke:tags", "list");
+  if (cachedTags) {
+    try {
+      const parsed = JSON.parse(cachedTags);
+      return reply.status(codes.ok).send(
+        new ApiResponse("Tags found successfully (cached)", codes.ok, {
+          tags: parsed,
+        }).res()
+      );
+    } catch {
+      // ignore parse error and re-fetch
+    }
+  }
+
   let tagAggr = await Joke.aggregate([
     { $unwind: "$tags" },
     { $group: { _id: null, tagList: { $addToSet: "$tags" } } },
@@ -192,71 +234,70 @@ export let getTags = asyncHandler(async (req, res) => {
 
   const tags = tagAggr[0]?.tagList || [];
   if (isEmpty(tags)) {
-    return res
+    return reply
       .status(codes.notFound)
-      .json(new ApiErrorResponse("Tags are not found", codes.notFound).res());
+      .send(new ApiErrorResponse("No tags found in the database", codes.notFound).res());
   }
-  await red.hSet(`joke:${process.env.KEY}`, "tags", JSON.stringify(tags));
-  return res.status(codes.ok).json(
-    new ApiResponse("Tags are found successfully", codes.ok, {
+
+  await cacheSet("joke:tags", "list", JSON.stringify(tags));
+
+  return reply.status(codes.ok).send(
+    new ApiResponse("Tags found successfully", codes.ok, {
       tags: tags,
     }).res()
   );
-});
+}
 
 //////////////////////////////////////////////////////////////
 
-export let jokeId = asyncHandler(async (req, res) => {
-  let id = req.params.id;
-  if (isEmpty([id])) {
-    return res
+export async function jokeId(request, reply) {
+  let { id } = request.params;
+  if (!id) {
+    return reply
       .status(codes.badRequest)
-      .json(new ApiErrorResponse("ID is required", codes.badRequest).res());
+      .send(new ApiErrorResponse("ID is required", codes.badRequest).res());
   }
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res
+    return reply
       .status(codes.badRequest)
-      .json(new ApiErrorResponse("Invalid ID format", codes.badRequest).res());
+      .send(new ApiErrorResponse("Invalid ID format", codes.badRequest).res());
   }
-  let joke = await Joke.findById(id);
+
+  let joke = await Joke.findById(id).select("-__v");
   if (!joke) {
-    return res.status(codes.notFound).json(
-      new ApiErrorResponse("Joke not found", codes.notFound, {
-        id: id,
-      }).res()
-    );
+    return reply
+      .status(codes.notFound)
+      .send(
+        new ApiErrorResponse("Joke not found", codes.notFound, { id }).res()
+      );
   }
-  return res.status(codes.ok).json(
-    new ApiResponse(`Joke with id: ${id} found successfully`, codes.ok, {
+
+  return reply.status(codes.ok).send(
+    new ApiResponse(`Joke with id ${id} found successfully`, codes.ok, {
       joke: joke.joke,
       rating: joke.rating,
       tags: joke.tags,
+      _id: joke._id,
+      createdAt: joke.createdAt,
     }).res()
   );
-});
+}
 
 ///////////////////////////////////////////////
 
-export let paginate = asyncHandler(async (req, res) => {
-  let page = parseInt(req.query.page) || 1;
-  let limit = parseInt(req.query.limit) || 10;
+export async function paginate(request, reply) {
+  let page = Math.max(1, parseInt(request.query.page) || 1);
+  let limit = Math.max(1, Math.min(100, parseInt(request.query.limit) || 10));
   let size = (page - 1) * limit;
-  let jokes = await Joke.aggregate([
-    { $skip: size },
-    { $limit: limit },
-    { $project: { __v: 0, createdAt: 0, updatedAt: 0 } },
-  ]);
-  let jokesAggr = await Joke.aggregate([{ $count: "joke" }]);
-  let totalJokes = jokesAggr[0]?.joke || 0;
-  let totalPages = Math.ceil(totalJokes / limit);
 
-  let remainingJokes = totalJokes - size - jokes.length;
+  let totalJokes = await Joke.countDocuments();
+  let totalPages = Math.ceil(totalJokes / limit) || 1;
 
-  if (page > totalPages) {
-    return res
+  if (page > totalPages && totalJokes > 0) {
+    return reply
       .status(codes.badRequest)
-      .json(
+      .send(
         new ApiErrorResponse(
           "Page number exceeds total pages",
           codes.badRequest
@@ -264,60 +305,94 @@ export let paginate = asyncHandler(async (req, res) => {
       );
   }
 
-  if (isEmpty([jokes]) || jokes.length === 0 || totalJokes === 0) {
-    return res
-      .status(codes.notFound)
-      .json(new ApiErrorResponse("Joke fetching error", codes.notFound).res());
-  }
+  let jokes = await Joke.find()
+    .skip(size)
+    .limit(limit)
+    .select("-__v")
+    .lean();
 
-  return res.status(codes.ok).json(
+  let remainingJokes = Math.max(0, totalJokes - size - jokes.length);
+
+  return reply.status(codes.ok).send(
     new ApiResponse(
-      `${limit} jokes successfully fetched. ${remainingJokes} jokes remaining.`,
+      `${jokes.length} jokes fetched. ${remainingJokes} jokes remaining.`,
       codes.ok,
       {
-        jokes: jokes, // you should return them!
+        jokes: jokes,
         page: page,
         limit: limit,
         totalJokes: totalJokes,
         remainingJokes: remainingJokes,
+        totalPages: totalPages,
         hasMore: page < totalPages,
         nextPage: page < totalPages ? page + 1 : null,
       }
     ).res()
   );
-});
+}
 
 //////////////////////////////////////////////
 
-export let newJoke = asyncHandler(async (req, res) => {
-  let body = req.body;
-  let { joke, tags, rating } = body;
-  console.log(tags);
-  if (isEmpty([joke, tags])) {
-    return res
-      .status(codes.badRequest)
-      .json(
+export async function newJoke(request, reply) {
+  let { joke, tags, rating } = request.body || {};
+
+  if (request.user && !request.user.role.includes("admin")) {
+    return reply
+      .status(codes.forbidden)
+      .send(
         new ApiErrorResponse(
-          "Joke and tags are required.",
+          "Forbidden: Regular users cannot create jokes. Admin privileges required.",
+          codes.forbidden
+        ).res()
+      );
+  }
+
+  if (!joke || !tags || (Array.isArray(tags) && tags.length === 0)) {
+    return reply
+      .status(codes.badRequest)
+      .send(
+        new ApiErrorResponse(
+          "Joke text and at least one tag are required.",
           codes.badRequest
         ).res()
       );
   }
 
-  let newJoke = await Joke.create({ ...body });
-  if (!newJoke) {
-    return res
-      .status(codes.interalServerError)
-      .json(
+  try {
+    let createdJoke = await Joke.create({
+      joke,
+      tags: Array.isArray(tags) ? tags : [tags],
+      rating: rating !== undefined ? Number(rating) : 0,
+    });
+
+    await cacheDel("joke:tags");
+
+    return reply.status(codes.created).send(
+      new ApiResponse("Joke created successfully", codes.created, {
+        id: createdJoke._id,
+        joke: createdJoke.joke,
+        tags: createdJoke.tags,
+        rating: createdJoke.rating,
+      }).res()
+    );
+  } catch (err) {
+    if (err.code === 11000) {
+      return reply
+        .status(codes.conflict)
+        .send(
+          new ApiErrorResponse(
+            "This joke already exists in JokeVault!",
+            codes.conflict
+          ).res()
+        );
+    }
+    return reply
+      .status(codes.badRequest)
+      .send(
         new ApiErrorResponse(
-          "Joke creation failed",
-          codes.interalServerError
+          err.message || "Joke creation failed",
+          codes.badRequest
         ).res()
       );
   }
-  return res.status(codes.ok).json(
-    new ApiResponse("Joke created successfully", codes.ok, {
-      joke: newJoke.joke,
-    }).res()
-  );
-});
+}

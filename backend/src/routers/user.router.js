@@ -1,4 +1,3 @@
-import express from "express";
 import {
   getAllUsers,
   login,
@@ -6,25 +5,24 @@ import {
   register,
   updateProfile,
   profile,
-  // bookMark,
+  updateUserRole,
+  getMe,
 } from "../controllers/user.controller.js";
-// import auth from "../middleware/auth.middleware.js";
-// import sendContact from "../utils/sendContact.js";
-// import sendSubscribe from "../utils/sendSubscribe.js";
-// import sendConfirmation from "../utils/sendConfirmation.js";
-import auth from "../middlewares/auth.middleware.js";
+import { auth, authorize } from "../middlewares/auth.middleware.js";
 
-const userRouter = express.Router();
+export default async function userRouter(fastify, options) {
+  // Public user endpoints
+  fastify.post("/register", register);
+  fastify.post("/login", { preHandler: [auth(false)] }, login);
+  fastify.get("/profile/:id", profile);
+  fastify.get("/all-users", getAllUsers);
 
-userRouter.route("/register").post(register);
-userRouter.route("/login").post(auth(false), login);
-userRouter.route("/logout").get(auth(), logout);
-// userRouter.route("/contact").post(sendContact);
-userRouter.route("/profile/:id").get(profile);
-// userRouter.route("/subscribe").post(sendSubscribe);
-// userRouter.route("/subscribe").post(sendConfirmation);
-// userRouter.route("/confirmation").post(sendConfirmation);
-userRouter.route("/profile/update").patch(auth(), updateProfile);
-userRouter.route("/all-users").get(getAllUsers);
+  // Authenticated cookie endpoints
+  fastify.get("/me", { preHandler: [auth(true)] }, getMe);
+  fastify.get("/logout", { preHandler: [auth(false)] }, logout);
+  fastify.post("/logout", { preHandler: [auth(false)] }, logout);
+  fastify.patch("/profile/update", { preHandler: [auth(true)] }, updateProfile);
 
-export default userRouter;
+  // RBAC Protected (Admin only)
+  fastify.patch("/role/:id", { preHandler: [auth(true), authorize("admin")] }, updateUserRole);
+}

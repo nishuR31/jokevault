@@ -17,11 +17,18 @@ const WelcomeCard = ({ user, stats }) => {
             </div>
           </div>
           <div>
-            <h1 className="text-2xl font-poppins font-bold text-foreground">
-              Welcome back, {user?.name}!
-            </h1>
-            <p className="text-muted-foreground">
-              Ready for your daily dose of laughter?
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-poppins font-bold text-foreground">
+                Welcome back, {user?.name}!
+              </h1>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-bold uppercase tracking-wider ${user?.role === 'admin' ? 'bg-amber-400/20 text-amber-400 border border-amber-400/30' : 'bg-primary/20 text-primary border border-primary/30'}`}>
+                {user?.role === 'admin' ? 'ADMIN' : 'USER'}
+              </span>
+            </div>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {user?.role === 'admin'
+                ? 'Administrator account with full mutation access (/j/:id)'
+                : 'Standard account with read-only access to joke endpoints'}
             </p>
           </div>
         </div>

@@ -1,13 +1,3 @@
-import express from "express";
-
-// import getJokes from "../controllers/getJokes.js";
-// import getTags from "../controllers/getTags.js";
-// import deleteJoke from "../controllers/deleteJoke.js";
-// import newJoke from "../controllers/newJoke.js";
-// import editJoke from "../controllers/editJoke.js";
-// import paginate from "../controllers/paginate.js";
-// import jokeId from "../controllers/jokeId.js";
-// import getJoke from "../controllers/getJoke.js";
 import {
   getJokes,
   getTags,
@@ -18,38 +8,33 @@ import {
   deleteJoke,
   paginate,
 } from "../controllers/joke.controller.js";
-let jokeRouter = express.Router();
+import { auth, authorize } from "../middlewares/auth.middleware.js";
 
-jokeRouter.get(
-  "/joke",
-  getJoke
-  //tags=tag tags=tag&tags=tag
-);
-//     return res.status(codes.ok).json(
-//       new ApiResponse("Joke fetched successfully", codes.ok, {
-//         joke: joke.joke,
-//         tags: joke.tags,
-//         rating: joke.rating,
-//       }).res()
-//     );
-//   })
-// );
+export default async function jokeRouter(fastify, options) {
+  // Discovery & listing endpoints
+  fastify.get("/joke", getJoke);
+  fastify.get("/jokes", getJokes);
+  fastify.get("/jokes/random", getJoke);
+  fastify.get("/tags", getTags);
+  fastify.get("/page", paginate);
 
-jokeRouter.get(
-  "/jokes", //tags=tag || tags=tag&tags=tag
-  getJokes
-);
+  // Creation (Admin only) - supports both /j and /j/joke
+  fastify.post("/", { preHandler: [auth(true), authorize("admin")] }, newJoke);
+  fastify.post("/joke", { preHandler: [auth(true), authorize("admin")] }, newJoke);
 
-jokeRouter.get("/tags", getTags);
+  // Unified RESTful route by ID (/api/v1/j/:id) based on HTTP methods
+  // GET: fetch joke by ID (Public / User)
+  fastify.get("/:id", jokeId);
+  fastify.get("/id/:id", jokeId); // backwards compatibility alias
 
-jokeRouter.delete("/:id/delete", deleteJoke);
+  // PUT & PATCH: update joke by ID (Admin only)
+  fastify.put("/:id", { preHandler: [auth(true), authorize("admin")] }, editJoke);
+  fastify.patch("/:id", { preHandler: [auth(true), authorize("admin")] }, editJoke);
 
-jokeRouter.post("/joke", newJoke);
+  // DELETE: delete joke by ID (Admin only)
+  fastify.delete("/:id", { preHandler: [auth(true), authorize("admin")] }, deleteJoke);
 
-jokeRouter.put("/:id/edit", editJoke);
-
-jokeRouter.get("/page", paginate);
-
-jokeRouter.get("/id/:id", jokeId);
-
-export default jokeRouter;
+  // Backwards compatibility aliases
+  fastify.put("/:id/edit", { preHandler: [auth(true), authorize("admin")] }, editJoke);
+  fastify.delete("/:id/delete", { preHandler: [auth(true), authorize("admin")] }, deleteJoke);
+}

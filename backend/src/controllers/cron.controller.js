@@ -1,48 +1,22 @@
-// import axios from "axios";
-// async function checkHealth() {
-//   try {
-//     const res = await axios.get("http://localhost:3000/api/v1/health");
-//     console.log(
-//       ` Health check at ${new Date().toLocaleTimeString()}`,
-//       res.data
-//     );
-//   } catch (err) {
-//     console.error(
-//       ` Health check failed at ${new Date().toLocaleTimeString()}:`,
-//       err.message,
-//       err.response?.status
-//     );
-//   }
-// }
-
-// function run(interval = 1000 * 60 * 5) {
-//   console.log("hehe");
-//   checkHealth(); // immediate run
-//   const inter = setInterval(checkHealth, interval);
-//   return () => clearInterval(inter);
-// }
-
-// run(1000 * 60 * 1);
-
 import cron from "node-cron";
 import axios from "axios";
 
-export default async function cronJob() {
+export default function cronJob() {
+  const port = process.env.PORT || 4000;
   try {
-    cron.schedule(" 5 * * * *", async () => {
+    // Run keep-alive / health self-check every 15 minutes
+    cron.schedule("*/15 * * * *", async () => {
       try {
-        let res = await axios.get("http://localhost:3000/api/v1/health");
-        if (res.data.success) {
-          console.log(`Cron done ran, successfully checked health`);
-          console.table(res.data);
+        const res = await axios.get(`http://127.0.0.1:${port}/api/v1/health`);
+        if (res.data?.success) {
+          console.log(`[Cron] Keep-alive health check passed: ${new Date().toLocaleTimeString()}`);
         }
       } catch (err) {
-        console.error(`Cron failed checking health:${err}`);
+        console.warn(`[Cron] Health check ping warning: ${err.message}`);
       }
     });
+    console.log("JokeVault scheduled tasks initialized.");
   } catch (err) {
-    console.error(`Fatal error in health cron job : ${err}`);
+    console.error(`Fatal error in health cron job: ${err.message}`);
   }
 }
-
-// 👇 Prevent Node from exiting if no server is running
